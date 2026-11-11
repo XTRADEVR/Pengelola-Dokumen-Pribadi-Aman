@@ -1,26 +1,13 @@
-// Keputusan keamanan: kunci AES-GCM non-extractable; IV acak 96-bit baru di setiap enkripsi; kegagalan dekripsi -> pesan generik.
-const te=new TextEncoder(),td=new TextDecoder();
-export const b64=u=>{let s='';for(let i=0;i<u.length;i+=8192)s+=String.fromCharCode(...u.subarray(i,i+8192));return btoa(s)};
-export const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
-export const rand=n=>crypto.getRandomValues(new Uint8Array(n));
-export async function derive(pass,salt,iter){
-  const m=await crypto.subtle.importKey('raw',te.encode(pass),'PBKDF2',false,['deriveKey']);
-  return crypto.subtle.deriveKey({name:'PBKDF2',hash:'SHA-256',salt,iterations:iter},m,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
-}
-// Kalibrasi sederhana: ~400 ms di perangkat ini, minimum 310.000. Nilai disimpan per brankas (tidak universal).
-export async function calibrate(target=400,min=310000){
-  const t=performance.now();await derive('x',rand(16),50000);
-  return Math.max(min,Math.round(50000*target/Math.max(performance.now()-t,1)/1000)*1000);
-}
-export async function encrypt(key,bytes){
-  const iv=rand(12),ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,bytes));
-  const o=new Uint8Array(12+ct.length);o.set(iv);o.set(ct,12);return o; // format: iv(12) || ciphertext+tag
-}
-export async function decrypt(key,blob){
-  try{if(!(blob instanceof Uint8Array)||blob.length<29)throw 0;
-    return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:blob.slice(0,12)},key,blob.slice(12)));}
-  catch{throw new Error('Gagal membuka data: passphrase salah atau data rusak.');}
-}
-export const encJson=(k,o)=>encrypt(k,te.encode(JSON.stringify(o)));
-export const decJson=async(k,b)=>JSON.parse(td.decode(await decrypt(k,b)));
-export const strongEnough=p=>(p.length>=12&&new Set(p).size>=6&&[/[a-z]/,/[A-Z]/,/\d/,/[^\w]/].filter(r=>r.test(p)).length>=2)||p.length>=20;
+// crypto.js - AES-GCM + PBKDF2
+export const rand=n=>{ const a=new Uint8Array(n); crypto.getRandomValues(a); return Array.from(a).map(b=>b.toString(16).padStart(2,'0')).join(''); };
+export const strongEnough=p=> p && (p.length>=20 || (p.length>=12 && /[a-z]/.test(p) && /[A-Z]/.test(p) && /\d/.test(p) && /[^A-Za-z0-9]/.test(p)));
+export const calibrate=async()=>{ const t=performance.now(); await derive('test','00'.repeat(16),1000); const el=performance.now()-t; return Math.min(200000, Math.max(50000, Math.floor(1000/el*100000))); };
+async function getKey(pass,salt,iter){ const enc=new TextEncoder(); const base=await crypto.subtle.importKey('raw',enc.encode(pass),'PBKDF2',false,['deriveKey']); return crypto.subtle.deriveKey({name:'PBKDF2',salt:hex(salt),iterations:iter,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']); }
+function hex(s){ const a=new Uint8Array(s.length/2); for(let i=0;i<a.length;i++) a[i]=parseInt(s.substr(i*2,2),16); return a; }
+function b64(b){ let s=''; b.forEach(x=>s+=String.fromCharCode(x)); return btoa(s); }
+function ub64(s){ return Uint8Array.from(atob(s),c=>c.charCodeAt(0)); }
+export const derive=async(pass,salt,iter)=>getKey(pass,salt,iter);
+export const encrypt=async(key,data)=>{ const iv=crypto.getRandomValues(new Uint8Array(12)); const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,data); return {iv:b64(iv),ct:b64(new Uint8Array(ct))}; };
+export const decrypt=async(key,obj)=>{ const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:ub64(obj.iv)},key,ub64(obj.ct)); return new Uint8Array(pt); };
+export const encJson=async(key,obj)=>encrypt(key,new TextEncoder().encode(JSON.stringify(obj)));
+export const decJson=async(key,obj)=>JSON.parse(new TextDecoder().decode(await decrypt(key,obj)));
