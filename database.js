@@ -1,30 +1,11 @@
-// database.js - IndexedDB wrapper
-const DB='dokumen-aman-db', VER=1;
-let p=null;
-function open(){
-  if(p) return p;
-  p=new Promise((res,rej)=>{
-    const r=indexedDB.open(DB,VER);
-    r.onupgradeneeded=()=>{ const db=r.result;
-      if(!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
-      if(!db.objectStoreNames.contains('docs')) db.createObjectStore('docs',{keyPath:'id'});
-      if(!db.objectStoreNames.contains('files')) db.createObjectStore('files',{keyPath:'id'});
-    };
-    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
-  }); return p;
-}
-async function tx(store,mode,fn){
-  const db=await open();
-  return new Promise((res,rej)=>{
-    const t=db.transaction(store,mode), s=t.objectStore(store);
-    const out=fn(s); t.oncomplete=()=>res(out); t.onerror=()=>rej(t.error);
-  });
-}
+const NAME='dokumen-aman', VER=1;
+let _db=null;
+function open(){ if(_db) return Promise.resolve(_db); return new Promise((res,rej)=>{ const r=indexedDB.open(NAME,VER); r.onupgradeneeded=()=>{ const d=r.result; if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta'); if(!d.objectStoreNames.contains('docs')) d.createObjectStore('docs',{keyPath:'id'}); if(!d.objectStoreNames.contains('files')) d.createObjectStore('files',{keyPath:'id'}); }; r.onsuccess=()=>{ _db=r.result; res(_db)}; r.onerror=()=>rej(r.error); });}
+function req(store,mode,fn){ return open().then(db=>new Promise((res,rej)=>{ const t=db.transaction(store,mode); const s=t.objectStore(store); const q=fn(s); if(q && q.onsuccess!==undefined){ q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error); } else { t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); } })); }
 export const supported=()=>!!window.indexedDB && !!window.crypto?.subtle;
-export const get=async(store,key)=>tx(store,'readonly',s=>new Promise((res,rej)=>{const q=s.get(key); q.onsuccess=()=>res(q.result?.v ?? q.result?.d ? q.result : q.result); q.onerror=()=>rej(q.error)}));
-// Wrapper khusus biar cocok sama vault.js: vault manggil db.get('meta','kdf')
-const _get=get;
-export async function get2(){}
-// --- Fungsi yang dipake vault.js & app.js ---
-export async function getMeta(){}
-export const wipeAll=async()=>{ const db=await open(); for(const st of ['kv','docs','files']){ await new Promise((res,rej)=>{ const t=db.transaction(st,'readwrite'); t.objectStore(st).clear(); t.oncomplete=res; t.onerror=()=>rej(t.error); }); } };
+export const get=(store,key)=>req(store,'readonly',s=>s.get(key));
+export const put=(store,key,val)=>req(store,'readwrite',s=> store==='meta'? s.put(val,key) : s.put(val));
+export const all=(store)=>req(store,'readonly',s=>s.getAll());
+export const del=(store,key)=>req(store,'readwrite',s=>s.delete(key));
+export const clear=(store)=>req(store,'readwrite',s=>s.clear());
+export const wipeAll=async()=>{ for(const st of ['meta','docs','files']) await clear(st); };
