@@ -1,0 +1,4 @@
+export const daysUntil=(exp,now)=>{ if(!exp) return 9999; return Math.ceil((new Date(exp)-now)/86400000); };
+export function status(d,now=new Date()){ if(!d.expires) return 'tanpa-tanggal'; const n=daysUntil(d.expires,now); if(n<0) return 'kedaluwarsa'; if(n<=30) return 'segera'; return 'berlaku'; }
+export function due(docs,now,offsets,sent){ const out=[]; for(const d of docs){ if(!d.expires) continue; const n=daysUntil(d.expires,now); for(const o of offsets){ if(n===o){ const key=d.id+'-'+o; if(!sent.includes(key)) out.push({key,doc:d,days:n}); } } } return out; }
+export async function notify(items,showDetail){ try{ if(Notification.permission!=='granted') return false; for(const it of items){ new Notification('Dokumen Segera Kedaluwarsa',{body: showDetail? `${it.doc.name} - ${it.days} hari lagi` : 'Ada dokumen yang segera kedaluwarsa'}); } return true; }catch{ return false; } }
