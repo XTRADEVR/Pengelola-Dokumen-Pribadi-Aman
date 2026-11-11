@@ -2,11 +2,11 @@
 <html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pengelola Dokumen Aman</title>
-<style>
-body{font-family:system-ui,sans-serif;background:#111;color:#fff;padding:16px}
-button,input{padding:10px;margin:4px 0;width:100%;border-radius:8px;border:1px solid #333;background:#222;color:#fff}
-</style>
+<style>body{font-family:system-ui,sans-serif;background:#111;color:#fff;padding:16px}button,input{padding:12px;margin:6px 0;width:100%;border-radius:8px;border:1px solid #333;background:#222;color:#fff}dialog{background:#222;color:#fff;border:1px solid #444;border-radius:12px;max-width:95vw} .err{color:#ff8080} .card{background:#1e1e1e;padding:12px;border-radius:10px;margin:6px 0} .row{display:flex;gap:8px} .row>*{flex:1}</style>
 </head>
-<body><main id="app" aria-live="polite"><p>Memuat…</p></main>
-<noscript>Aplikasi ini memerlukan JavaScript.</noscript>
+<body><main id="app"><p>Memuat…</p></main>
+<script>
+window.addEventListener('error',e=>{ document.getElementById('app').innerHTML='<p class="err">ERROR: '+e.message+'<br>Cek file: '+e.filename+'</p>'; });
+window.addEventListener('unhandledrejection',e=>{ document.getElementById('app').innerHTML='<p class="err">ERROR: '+(e.reason&&e.reason.message?e.reason.message:e.reason)+'</p>'; });
+</script>
 <script type="module" src="./app.js"></script></body></html>
